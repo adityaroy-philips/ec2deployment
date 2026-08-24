@@ -32,6 +32,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: "us-east-1"
           audience: sts.amazonaws.com
+          output-env-credentials: true
         env:
          TERRAFORM_CLI_PATH: /home/runner/work/_temp/1e011214-5c01-4b30-9cc6-9b6c7ae95502
 

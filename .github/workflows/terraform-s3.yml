@@ -14,7 +14,6 @@ jobs:
     name: 'Terraform Deploy'
     runs-on: ubuntu-latest
     
-    # Set the working directory to where your terraform files live
     defaults:
       run:
         working-directory: ./terraform
@@ -33,7 +32,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1 # Match the region specified in your Terraform code
+        aws-region: us-east-1
 
     - name: Terraform Init
       run: terraform init
@@ -43,8 +42,7 @@ jobs:
 
     - name: Terraform Plan
       run: terraform plan -input=false
-
-    # This step only runs if code is pushed/merged into the main branch
+      
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false
+      run: terraform apply -auto-approve -input=falseUse code with caution.

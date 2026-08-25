@@ -1,4 +1,3 @@
-hcl
 # 1. Create the Custom VPC
 resource "aws_vpc" "main" {
   cidr_block           = "10.20.0.0/16"

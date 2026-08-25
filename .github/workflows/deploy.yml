@@ -1,7 +1,14 @@
-yaml
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+# FIX: Placed at the root level, properly indented
 permissions:
-  id-token: write # Required for requesting the JWT
-  contents: read  # Required for actions/checkout
+  id-token: write
+  contents: read
 
 jobs:
   DeployToAWS:

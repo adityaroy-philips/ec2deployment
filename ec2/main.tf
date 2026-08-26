@@ -104,7 +104,7 @@ resource "aws_security_group" "ec2_sg" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_block  = "0.0.0.0/0"
+    cidr_block  = ["0.0.0.0/0"]
   }
   tags = { Name = "windows-private-sg" }
 }

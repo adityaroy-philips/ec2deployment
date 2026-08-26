@@ -26,9 +26,8 @@ jobs:
 
     - name: Terraform Init
       run: terraform init
-      working-directory: ./ec2
-      
+      working-directory: ./ec2 # Update this to your folder path. ec2 is folder name .github/workflows/ec2
 
     - name: Terraform Apply
-      run: terraform apply -auto-approve
-      working-directory: ./ec2
+      run: terraform destroy -auto-approve
+      working-directory: ./ec2 # Update this to your folder path. ec2 is folder name .github/workflows/ec2

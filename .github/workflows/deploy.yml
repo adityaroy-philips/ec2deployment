@@ -67,7 +67,7 @@ jobs:
 
     - name: Delete Networking (Subnets, Route Tables, IGW, VPC)
       run: |
-        VPC_ID=$(aws ec2 describevpcs --filters "Name=tag:Name,Values=ssm-windows-vpc" --query "Vpcs[*].VpcId" --output text)
+        VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ssm-windows-vpc" --query "Vpcs[*].VpcId" --output text)
         if [ ! -z "$VPC_ID" ]; then
           echo "Found VPC $VPC_ID. Cleaning up networking components..."
           

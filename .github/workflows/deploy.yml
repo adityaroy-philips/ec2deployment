@@ -24,10 +24,6 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
 
-    - name: Terraform Init
-      run: terraform init
-      working-directory: ./ec2 # Update this to your folder path. ec2 is folder name .github/workflows/ec2
-
-    - name: Terraform Apply
+      - name: Terraform destroy
       run: terraform destroy -auto-approve
       working-directory: ./ec2 # Update this to your folder path. ec2 is folder name .github/workflows/ec2

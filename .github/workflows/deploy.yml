@@ -1,106 +1,33 @@
-name: AWS Complete Resource Teardown
+name: Deploy AWS Infrastructure
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
-  cleanup:
+  terraform:
+    name: "Terraform Provision"
     runs-on: ubuntu-latest
-    env:
-      AWS_DEFAULT_REGION: us-east-1
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
+    
     steps:
-    - name: Checkout code
+    - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Terminate Windows EC2 Instance
-      run: |
-        echo "Searching for EC2 Instance..."
-        INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=Private-Windows-Server" "Name=instance-state-name,Values=running,pending,stopped" --query "Reservations[*].Instances[*].InstanceId" --output text)
-        if [ ! -z "$INSTANCE_ID" ]; then
-          echo "Terminating instance $INSTANCE_ID..."
-          aws ec2 terminate-instances --instance-ids $INSTANCE_ID
-          echo "Waiting for instance to be fully terminated..."
-          aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
-        else
-          echo "No running instance found."
-        fi
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
 
-    - name: Delete IAM Configuration
-      run: |
-        echo "Removing Role from Instance Profile..."
-        aws iam remove-role-from-instance-profile --instance-profile-name windows_ec2_ssm_profile --role-name WindowsEC2SSMRole || true
-        echo "Deleting Instance Profile..."
-        aws iam delete-instance-profile --instance-profile-name windows_ec2_ssm_profile || true
-        echo "Detaching Policy..."
-        aws iam detach-role-policy --role-name WindowsEC2SSMRole --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore || true
-        echo "Deleting IAM Role..."
-        aws iam delete-role --role-name WindowsEC2SSMRole || true
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
 
-    - name: Delete NAT Gateway & Release Elastic IP
-      run: |
-        echo "Searching for NAT Gateway..."
-        NAT_GW_ID=$(aws ec2 describe-nat-gateways --filter "Name=tag:Name,Values=main-nat-gw" "Name=state,Values=pending,available" --query "NatGateways[*].NatGatewayId" --output text)
-        if [ ! -z "$NAT_GW_ID" ]; then
-          echo "Deleting NAT Gateway $NAT_GW_ID..."
-          aws ec2 delete-nat-gateway --nat-gateway-id $NAT_GW_ID
-          echo "Waiting for NAT Gateway to delete (this takes a couple of minutes)..."
-          aws ec2 wait nat-gateway-deleted --nat-gateway-ids $NAT_GW_ID
-        fi
-        
-        echo "Releasing Elastic IP..."
-        EIP_ALLOC=$(aws ec2 describe-addresses --filters "Name=domain,Values=vpc" --query "Addresses[*].AllocationId" --output text)
-        for alloc in $EIP_ALLOC; do
-          aws ec2 release-address --allocation-id $alloc || true
-        done
+    - name: Terraform Init
+      run: terraform init
+      working-directory: ./ec2 # Update this to your folder path. ec2 is folder name .github/workflows/ec2
 
-    - name: Delete Security Groups & Dependencies
-      run: |
-        SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=windows-private-sg" --query "SecurityGroups[*].GroupId" --output text)
-        if [ ! -z "$SG_ID" ]; then
-          aws ec2 delete-security-group --group-id $SG_ID || true
-        fi
-
-    - name: Delete Networking (Subnets, Route Tables, IGW, VPC)
-      run: |
-        VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ssm-windows-vpc" --query "Vpcs[*].VpcId" --output text)
-        if [ ! -z "$VPC_ID" ]; then
-          echo "Found VPC $VPC_ID. Waiting 60 seconds for background ENIs and NAT Gateways to finish shutting down..."
-          sleep 60
-          
-          # Delete Internet Gateway
-          IGW_ID=$(aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[*].InternetGatewayId" --output text)
-          if [ ! -z "$IGW_ID" ]; then
-            aws ec2 detach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID || true
-            aws ec2 delete-internet-gateway --internet-gateway-id $IGW_ID || true
-          fi
-          
-          # Force disassociate custom Route Tables
-          ASSOC_IDS=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" --query "RouteTables[*].Associations[?Main!=\`true\`].RouteTableAssociationId" --output text)
-          for assoc in $ASSOC_IDS; do
-            aws ec2 disassociate-route-table --association-id $assoc || true
-          done
-
-          # Delete Route Tables
-          RTS=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" --query "RouteTables[?Associations[0].Main!=\`true\`].RouteTableId" --output text)
-          for rt in $RTS; do
-            aws ec2 delete-route-table --route-table-id $rt || true
-          done
-          
-          # Delete Subnets
-          SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query "Subnets[*].SubnetId" --output text)
-          for subnet in $SUBNETS; do
-            aws ec2 delete-subnet --subnet-id $subnet || true
-          done
-          
-          # Final retry for VPC deletion
-          echo "Deleting VPC..."
-          aws ec2 delete-vpc --vpc-id $VPC_ID || (echo "Waiting another 30 seconds..." && sleep 30 && aws ec2 delete-vpc --vpc-id $VPC_ID)
-          echo "VPC and all subnets successfully wiped out!"
-        else
-          echo "VPC not found."
-        fi
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
+      working-directory: ./ec2 # Update this to your folder path. ec2 is folder name .github/workflows/ec2
